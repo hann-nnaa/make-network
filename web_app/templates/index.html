@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Run Network Tool</h2>
+
+<form action="/run" method="post">
+    <label>Target IP:</label>
+    <input type="text" name="target" placeholder="8.8.8.8" required>
+
+    <label>Tool:</label>
+    <select name="tool">
+        <option value="ping">Ping</option>
+        <option value="traceroute">Traceroute</option>
+    </select>
+
+    <button type="submit">Execute</button>
+</form>
+{% endblock %}
