@@ -9,34 +9,32 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    char *target_ip = argv[1];
-
     int sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
     if (sock < 0) {
         perror("socket");
         return 1;
     }
 
-    struct timeval tv;
-    tv.tv_sec = 3;
-    tv.tv_usec = 0;
+    /* 受信タイムアウト 3秒 */
+    struct timeval tv = {3, 0};
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
     struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = inet_addr(target_ip);
+    inet_pton(AF_INET, argv[1], &addr.sin_addr);
 
+    /* ICMP Echo Request 作成 */
     char send_buf[64];
-    char recv_buf[1024];
+    memset(send_buf, 0, sizeof(send_buf));
 
     struct icmphdr *icmp = (struct icmphdr *)send_buf;
     icmp->type = ICMP_ECHO;
     icmp->code = 0;
-    icmp->un.echo.id = getpid();
-    icmp->un.echo.sequence = 1;
-    memset(send_buf + sizeof(struct icmphdr), 0, 32);
+    icmp->un.echo.id = htons(getpid() & 0xFFFF);
+    icmp->un.echo.sequence = htons(1);
+    icmp->checksum = 0;
 
-    // チェックサム計算
     icmp->checksum = calc_checksum((unsigned short *)icmp, sizeof(send_buf));
 
     struct timeval start, end;
@@ -48,17 +46,35 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    socklen_t len = sizeof(addr);
+    /* ===== ここが重要：受信ループ ===== */
+    char recv_buf[1024];
+    while (1) {
+        ssize_t n = recvfrom(sock, recv_buf, sizeof(recv_buf), 0, NULL, NULL);
+        if (n < 0) {
+            perror("recvfrom");
+            close(sock);
+            return 1;
+        }
 
-    if (recvfrom(sock, recv_buf, sizeof(recv_buf), 0,
-                 (struct sockaddr *)&addr, &len) < 0) {
-        perror("recvfrom");
-        return 1;
+        /* IP ヘッダをスキップ */
+        struct iphdr *ip = (struct iphdr *)recv_buf;
+        int ip_hdr_len = ip->ihl * 4;
+
+        struct icmphdr *recv_icmp =
+            (struct icmphdr *)(recv_buf + ip_hdr_len);
+
+        /* 自分宛の Echo Reply か確認 */
+        if (recv_icmp->type == ICMP_ECHOREPLY &&
+            recv_icmp->un.echo.id == htons(getpid() & 0xFFFF)) {
+
+            gettimeofday(&end, NULL);
+            printf("PING %s: time=%.2f ms\n",
+                   argv[1], time_diff(start, end));
+            break;
+        }
+        /* 関係ない ICMP は無視して待ち続ける */
     }
 
-    gettimeofday(&end, NULL);
-
-    printf("PING %s: time=%.2f ms\n", target_ip, time_diff(start, end));
-
+    close(sock);
     return 0;
 }

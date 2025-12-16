@@ -62,4 +62,3 @@ getcap ./traceroute
 ### ping
 ./ping <IPアドレスI
 
-
