@@ -35,16 +35,22 @@ portfolio/
 RAWソケットを使うため、Linux(WSL,Ubuntuなど)が必要です
 
 まず依存パッケージをインストール:  
-**sudo apt update**  
-**sudo apt install build-essential python3-pip**  
+```bash
+sudo apt update  
+sudo apt install build-essential python3-pip
+```
 
 Flaskのインストール:  
-**pip3 install flask**
+```bash
+pip3 install flask
+```
 
 ## ビルド方法
 Makefileがあるので、ディレクトリ内で以下を実行します  
-**cd tool_program**  
-**make**  
+```bash
+cd tool_program  
+make
+```
 
 成功すると以下のファイルができます  
 ・ping  
@@ -52,20 +58,28 @@ Makefileがあるので、ディレクトリ内で以下を実行します
 
 RAWソケット実行権限の設定  
 通常ユーザーがRAWソケットを利用するにはsetcapが必要です  
-**sudo setcap cap_net_raw+ep ./ping**  
-**sudo setcap cap_net_raw+ep ./traceroute**  
+```bash
+sudo setcap cap_net_raw+ep ./ping
+sudo setcap cap_net_raw+ep ./traceroute
+```
 確認：  
-**getcap ./ping**  
-**getcap ./traceroute**  
+```bash
+getcap ./ping  
+getcap ./traceroute  
+```
 
 ## 実行方法
 ### ping
-**sudo ./ping <IPアドレス>**  
+```bash
+sudo ./ping <IPアドレス>
+```
 実行例：  
 PING 8.8.8.8: time=22.71ms  
 
 ### traceroute
-**sudo ./traceroute <IPアドレス>**  
+```bash
+sudo ./traceroute <IPアドレス>
+``` 
 実行例：  
 Traceroute to 8.8.8.8 (8.8.8.8), 30 hops max  
 
@@ -81,11 +95,14 @@ Traceroute to 8.8.8.8 (8.8.8.8), 30 hops max
 
 ## Web インターフェイスの使い方(Flask)
 ### 起動方法  
-**cd web_app**  
-**python3 app.py**  
+```bash
+cd web_app
+python3 app.py
+```
 ### ブラウザでアクセス
-http://Localhost:5000  
+`http://Localhost:5000`  
 
 ### 画面内容
 **・Target IP**: 送信先IPアドレス  
 **・Tool**: ping/traceroute どちらかを選択してRunを押すと、実行結果が表示されます
+
