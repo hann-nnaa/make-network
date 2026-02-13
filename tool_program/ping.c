@@ -1,6 +1,7 @@
 // コンパイル: gcc ping.c -o ping utils.o
 // 実行　: sudo ./ping <IP>
 
+#include <stdio.h>
 #include "common.h"
 
 int main(int argc, char *argv[]) {

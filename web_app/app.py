@@ -1,8 +1,13 @@
 from flask import Flask, render_template, request
+from flask_socketio import SocketIO, emit
 import subprocess
 import os
+import re
+import time
+import random
 
 app = Flask(__name__)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 
 # 実行ファイルの絶対パス設定
@@ -11,66 +16,131 @@ NETWORK_TOOL_DIR = os.path.abspath(
     os.path.join(BASE_DIR, "..", "tool_program")
 )
 
-CMD_MAP = {
-    "ping": os.path.join(NETWORK_TOOL_DIR, "ping"),
-    "traceroute": os.path.join(NETWORK_TOOL_DIR, "traceroute"),
-}
+PING_CMD = os.path.join(NETWORK_TOOL_DIR, "ping")
 
 
-# トップページ
 @app.route("/")
 def index():
+    """
+    VTuber 配信をイメージした
+    「配信遅延可視化ダッシュボード」画面を返す。
+    """
     return render_template("index.html")
 
-# コマンド実行
-@app.route("/run", methods=["POST"])
-def run():
-    tool = request.form.get("tool")
-    target = request.form.get("target")
 
-    # 入力チェック
-    if tool not in CMD_MAP:
-        return "Invalid tool"
-
-    if not target:
-        return "Target is required"
-
-    cmd_path = CMD_MAP[tool]
-
-    # 実行ファイル存在チェック
-    if not os.path.exists(cmd_path):
-        return f"Command not found: {cmd_path}"
-
-    if not os.access(cmd_path, os.X_OK):
-        return f"Command not executable: {cmd_path}"
-
-    cmd = [cmd_path, target]
+def run_ping_once(target_ip: str) -> float | None:
+    """
+    C 言語で実装した ping 実行ファイルを 1 回だけ実行し、
+    出力から RTT(ms) をパースして返す。
+    取得できなければ None を返す。
+    """
+    if not os.path.exists(PING_CMD) or not os.access(PING_CMD, os.X_OK):
+        return None
 
     try:
-        result = subprocess.check_output(
-            cmd,
+        # ping <IP> を 1 回だけ実行
+        out = subprocess.check_output(
+            [PING_CMD, target_ip],
             stderr=subprocess.STDOUT,
             text=True,
-            timeout=5
+            timeout=3,
         )
-    except subprocess.TimeoutExpired:
-        result = "Error: command timed out"
-    except subprocess.CalledProcessError as e:
-        result = e.output
-    except Exception as e:
-        result = f"Unexpected error: {e}"
+    except Exception:
+        return None
 
-    return render_template("result.html", result=result)
+    # 例: "PING 8.8.8.8: time=22.71 ms"
+    m = re.search(r"time=([0-9.]+)\s*ms", out)
+    if not m:
+        return None
 
-# ログイン（ダミー）
-@app.route("/login")
-def login():
-    return render_template("login.html")
+    return float(m.group(1))
 
-# Flask 起動
+
+def latency_stream(target_ip: str, sid: str):
+    """
+    視聴者 1 人分の「配信遅延(=RTT を簡易モデルとみなす)」を継続計測し、
+    WebSocket 経由でフロントに push するバックグラウンドタスク。
+    """
+    # 簡易的な stop フラグ。切断時に False に更新される。
+    # （本気で作り込む場合は redis 等で管理する）
+    running = True
+
+    # コメントも一緒に流すため、ここでコメント生成も行う
+    last_comment_time = time.time()
+    COMMENT_TEXTS = [
+        "ナイスプレイ！",
+        "コメント読み助かる！",
+        "草",
+        "今日も配信ありがとう！",
+        "ラグちょっと増えた？",
+        "低遅延モードいい感じ！",
+    ]
+
+    while running:
+        start_ts = time.time()
+        rtt_ms = run_ping_once(target_ip)
+
+        now = time.time()
+        payload = {
+            "timestamp": now,
+            "rtt_ms": rtt_ms,
+        }
+
+        socketio.emit("latency", payload, room=sid)
+
+        # 疑似コメントサーバ: 数秒おきにコメントを push
+        if now - last_comment_time > random.uniform(2.0, 5.0):
+            last_comment_time = now
+            comment = random.choice(COMMENT_TEXTS)
+            socketio.emit(
+                "comment",
+                {
+                    "text": comment,
+                    # 「コメントサーバが送信した時刻」という想定
+                    "sent_at": now,
+                },
+                room=sid,
+            )
+
+        # おおよそ 1 秒間隔になるよう sleep（計測＋コメント送信時間も考慮）
+        elapsed = time.time() - start_ts
+        wait = max(0.2, 1.0 - elapsed)
+        socketio.sleep(wait)
+
+
+@socketio.on("start_measure")
+def handle_start_measure(data):
+    """
+    フロントからの計測開始要求。
+    data: { "target_ip": "8.8.8.8" }
+    """
+    target_ip = data.get("target_ip")
+    if not target_ip:
+        emit("error", {"message": "ターゲット IP が指定されていません"})
+        return
+
+    # 各クライアントごとにバックグラウンドタスクを起動
+    sid = request.sid  # type: ignore[name-defined]
+    socketio.start_background_task(latency_stream, target_ip, sid)
+
+
+@socketio.on("connect")
+def handle_connect():
+    emit("info", {"message": "配信遅延可視化サーバに接続しました"})
+
+
+@socketio.on("disconnect")
+def handle_disconnect():
+    # 簡易実装のため、個別の stop 制御は割愛し、
+    # eventlet のタスク終了に任せる。
+    pass
+
+
 if __name__ == "__main__":
-    app.run(
+    # WebSocket を使うため、flask-socketio から起動
+    socketio.run(
+        app,
         host="0.0.0.0",
         port=5000,
-        debug=True
+        debug=True,
     )

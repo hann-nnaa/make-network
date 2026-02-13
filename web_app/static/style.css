@@ -1,27 +1,164 @@
 body {
     font-family: sans-serif;
     margin: 20px;
-    background: #f2f2f2;
+    background: #0f172a;
+    color: #e5e7eb;
 }
 
 header {
-    background: #333;
-    color: white;
-    padding: 10px;
+    background: linear-gradient(90deg, #111827, #1f2937);
+    color: #f9fafb;
+    padding: 16px 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 20px;
+}
+
+main {
+    max-width: 1100px;
+    margin: 0 auto;
 }
 
 form {
-    background: white;
+    background: #020617;
     padding: 20px;
-    border-radius: 5px;
+    border-radius: 8px;
+    border: 1px solid #1f2937;
 }
 
 label {
     display: block;
     margin-top: 10px;
+    font-size: 14px;
+}
+
+input[type="text"] {
+    width: 100%;
+    padding: 8px 10px;
+    margin-top: 4px;
+    border-radius: 6px;
+    border: 1px solid #4b5563;
+    background: #020617;
+    color: #e5e7eb;
 }
 
 button {
     margin-top: 15px;
-    padding: 8px 15px;
+    padding: 8px 18px;
+    border-radius: 9999px;
+    border: none;
+    background: linear-gradient(135deg, #22c55e, #0ea5e9);
+    color: #0b1120;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+.intro {
+    background: #020617;
+    border-radius: 8px;
+    padding: 16px 20px;
+    border: 1px solid #1f2937;
+    margin-bottom: 20px;
+    line-height: 1.6;
+}
+
+.layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    grid-gap: 16px;
+}
+
+.control-panel {
+    background: #020617;
+    border-radius: 8px;
+    padding: 16px 20px;
+    border: 1px solid #1f2937;
+}
+
+.control-panel h2,
+.visual-panel h2 {
+    margin-top: 0;
+    font-size: 16px;
+}
+
+.hint {
+    font-size: 12px;
+    color: #9ca3af;
+    margin-top: 12px;
+}
+
+.visual-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.card {
+    background: #020617;
+    border-radius: 8px;
+    padding: 16px 20px 20px;
+    border: 1px solid #1f2937;
+}
+
+.comments-card {
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+#comment-list {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+#comment-list li {
+    padding: 6px 0;
+    border-bottom: 1px dashed #1f2937;
+}
+
+.comment-text {
+    display: block;
+}
+
+.comment-meta {
+    display: block;
+    font-size: 11px;
+    color: #9ca3af;
+}
+
+.status-label {
+    display: inline-block;
+    margin-left: 10px;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    font-size: 12px;
+}
+
+.status-disconnected {
+    background: rgba(248, 113, 113, 0.15);
+    color: #fecaca;
+}
+
+.status-connected {
+    background: rgba(52, 211, 153, 0.15);
+    color: #bbf7d0;
+}
+
+.status-measuring {
+    background: rgba(56, 189, 248, 0.15);
+    color: #bae6fd;
+}
+
+@media (max-width: 900px) {
+    .layout {
+        grid-template-columns: 1fr;
+    }
 }

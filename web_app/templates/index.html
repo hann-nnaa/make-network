@@ -1,17 +1,178 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Run Network Tool</h2>
+<section class="intro">
+    <p>
+        このツールは、VTuber 配信をイメージして、
+        視聴者側から見た「配信遅延（ラグ）」を
+        <strong>RTT(往復遅延)</strong>としてリアルタイムに可視化するダッシュボードです。
+    </p>
+    <p>
+        左側で計測対象の IP を入力して「計測開始」を押すと、
+        右側のグラフに遅延の揺らぎが流れ、下部のコメント欄に
+        疑似コメントサーバからのメッセージが届きます。
+    </p>
+</section>
 
-<form action="/run" method="post">
-    <label>Target IP:</label>
-    <input type="text" name="target" placeholder="8.8.8.8" required>
+<section class="layout">
+    <div class="control-panel">
+        <h2>配信環境（疑似）設定</h2>
+        <label for="target-ip">Target IP (配信サーバ想定):</label>
+        <input id="target-ip" type="text" value="8.8.8.8" />
 
-    <label>Tool:</label>
-    <select name="tool">
-        <option value="ping">Ping</option>
-        <option value="traceroute">Traceroute</option>
-    </select>
+        <button id="start-btn">計測開始</button>
+        <span id="status-label" class="status-label status-disconnected">
+            未接続
+        </span>
 
-    <button type="submit">Execute</button>
-</form>
+        <div class="hint">
+            ※ VTuber 配信の実サービスでは、CDN や配信プラットフォームの
+            専用サーバに向けて計測を行うイメージです。
+        </div>
+    </div>
+
+    <div class="visual-panel">
+        <div class="card">
+            <h2>配信遅延グラフ（RTT）</h2>
+            <canvas id="latency-chart"></canvas>
+        </div>
+
+        <div class="card comments-card">
+            <h2>コメントサーバ（疑似）からのコメント</h2>
+            <ul id="comment-list"></ul>
+        </div>
+    </div>
+</section>
+
+<!-- Socket.IO クライアントは CDN から取得（SRI は一旦オフ） -->
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<!-- Chart.js は CDN から取得 -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    let socket = null;
+    let chart = null;
+    const MAX_POINTS = 60; // およそ 1 分分
+
+    function setupChart() {
+        const ctx = document.getElementById('latency-chart').getContext('2d');
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'RTT [ms]',
+                    data: [],
+                    borderColor: '#00bcd4',
+                    backgroundColor: 'rgba(0, 188, 212, 0.2)',
+                    tension: 0.25,
+                    pointRadius: 0,
+                }]
+            },
+            options: {
+                animation: false,
+                scales: {
+                    x: {
+                        title: { display: true, text: '時刻' }
+                    },
+                    y: {
+                        title: { display: true, text: 'RTT [ms]' },
+                        beginAtZero: true
+                    }
+                },
+                plugins: {
+                    legend: { display: true }
+                }
+            }
+        });
+    }
+
+    function addLatencyPoint(ts, rttMs) {
+        if (!chart) return;
+        const timeLabel = new Date(ts * 1000).toLocaleTimeString();
+        chart.data.labels.push(timeLabel);
+        chart.data.datasets[0].data.push(rttMs);
+
+        if (chart.data.labels.length > MAX_POINTS) {
+            chart.data.labels.shift();
+            chart.data.datasets[0].data.shift();
+        }
+        chart.update('none');
+    }
+
+    function addComment(text, sentAtTs) {
+        const list = document.getElementById('comment-list');
+        const li = document.createElement('li');
+
+        const now = Date.now() / 1000.0;
+        const delay = (now - sentAtTs) * 1000.0; // ms
+
+        li.innerHTML = `
+            <span class="comment-text">${text}</span>
+            <span class="comment-meta">
+                サーバ送信: ${new Date(sentAtTs * 1000).toLocaleTimeString()} /
+                受信遅延: ${delay.toFixed(0)} ms
+            </span>
+        `;
+        list.prepend(li);
+
+        // 古いコメントを残しすぎない
+        while (list.children.length > 50) {
+            list.removeChild(list.lastChild);
+        }
+    }
+
+    function setStatus(text, type) {
+        const label = document.getElementById('status-label');
+        label.textContent = text;
+        label.className = 'status-label ' + type;
+    }
+
+    function startMeasure() {
+        const targetIp = document.getElementById('target-ip').value.trim();
+        if (!targetIp) {
+            alert('Target IP を入力してください');
+            return;
+        }
+
+        if (!socket) {
+            socket = io();
+
+            socket.on('connect', () => {
+                setStatus('接続済み', 'status-connected');
+            });
+
+            socket.on('disconnect', () => {
+                setStatus('未接続', 'status-disconnected');
+            });
+
+            socket.on('latency', (payload) => {
+                if (payload.rtt_ms != null) {
+                    addLatencyPoint(payload.timestamp, payload.rtt_ms);
+                }
+            });
+
+            socket.on('comment', (payload) => {
+                addComment(payload.text, payload.sent_at);
+            });
+
+            socket.on('info', (payload) => {
+                console.log(payload.message);
+            });
+
+            socket.on('error', (payload) => {
+                alert(payload.message || 'エラーが発生しました');
+            });
+        }
+
+        socket.emit('start_measure', { target_ip: targetIp });
+        setStatus('計測中...', 'status-measuring');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        setupChart();
+        document
+            .getElementById('start-btn')
+            .addEventListener('click', startMeasure);
+    });
+</script>
 {% endblock %}
