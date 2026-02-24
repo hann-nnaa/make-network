@@ -25,7 +25,7 @@ measure_paused = {}
 @app.route("/")
 def index():
     """
-    VTuber 配信をイメージした
+     配信をイメージした
     「配信遅延可視化ダッシュボード」画面を返す。
     """
     return render_template("index.html")
