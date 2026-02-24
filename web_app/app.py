@@ -18,11 +18,14 @@ NETWORK_TOOL_DIR = os.path.abspath(
 
 PING_CMD = os.path.join(NETWORK_TOOL_DIR, "ping")
 
+# クライアントごとの一時停止フラグ（sid -> bool）
+measure_paused = {}
+
 
 @app.route("/")
 def index():
     """
-    VTuber 配信をイメージした
+    ネットワークの遅延をイメージした
     「配信遅延可視化ダッシュボード」画面を返す。
     """
     return render_template("index.html")
@@ -77,6 +80,10 @@ def latency_stream(target_ip: str, sid: str):
     ]
 
     while running:
+        # 一時停止中は待機
+        while measure_paused.get(sid, False):
+            socketio.sleep(0.3)
+
         start_ts = time.time()
         rtt_ms = run_ping_once(target_ip)
 
@@ -119,9 +126,23 @@ def handle_start_measure(data):
         emit("error", {"message": "ターゲット IP が指定されていません"})
         return
 
-    # 各クライアントごとにバックグラウンドタスクを起動
     sid = request.sid  # type: ignore[name-defined]
+    measure_paused[sid] = False
     socketio.start_background_task(latency_stream, target_ip, sid)
+
+
+@socketio.on("pause_measure")
+def handle_pause_measure():
+    """フロントからの計測一時停止要求。"""
+    sid = request.sid  # type: ignore[name-defined]
+    measure_paused[sid] = True
+
+
+@socketio.on("resume_measure")
+def handle_resume_measure():
+    """フロントからの計測再開要求。"""
+    sid = request.sid  # type: ignore[name-defined]
+    measure_paused[sid] = False
 
 
 @socketio.on("connect")
@@ -131,9 +152,8 @@ def handle_connect():
 
 @socketio.on("disconnect")
 def handle_disconnect():
-    # 簡易実装のため、個別の stop 制御は割愛し、
-    # eventlet のタスク終了に任せる。
-    pass
+    sid = request.sid  # type: ignore[name-defined]
+    measure_paused.pop(sid, None)
 
 
 if __name__ == "__main__":

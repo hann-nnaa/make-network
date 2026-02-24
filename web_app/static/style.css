@@ -157,6 +157,22 @@ button:hover {
     color: #bae6fd;
 }
 
+.status-paused {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fef3c7;
+}
+
+.button-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 15px;
+    flex-wrap: wrap;
+}
+
+.button-row button.secondary {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
 @media (max-width: 900px) {
     .layout {
         grid-template-columns: 1fr;

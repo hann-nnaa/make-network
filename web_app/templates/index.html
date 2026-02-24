@@ -2,7 +2,7 @@
 {% block content %}
 <section class="intro">
     <p>
-        このツールは、VTuber 配信をイメージして、
+        このツールは、配信をイメージして、
         視聴者側から見た「配信遅延（ラグ）」を
         <strong>RTT(往復遅延)</strong>としてリアルタイムに可視化するダッシュボードです。
     </p>
@@ -19,13 +19,17 @@
         <label for="target-ip">Target IP (配信サーバ想定):</label>
         <input id="target-ip" type="text" value="8.8.8.8" />
 
-        <button id="start-btn">計測開始</button>
+        <div class="button-row">
+            <button id="start-btn">計測開始</button>
+            <button id="pause-btn" class="secondary" style="display: none;">一時停止</button>
+            <button id="resume-btn" class="secondary" style="display: none;">再開</button>
+        </div>
         <span id="status-label" class="status-label status-disconnected">
             未接続
         </span>
 
         <div class="hint">
-            ※ VTuber 配信の実サービスでは、CDN や配信プラットフォームの
+            ※配信の実サービスでは、CDN や配信プラットフォームの
             専用サーバに向けて計測を行うイメージです。
         </div>
     </div>
@@ -127,6 +131,15 @@
         label.className = 'status-label ' + type;
     }
 
+    function setButtonState(state) {
+        const startBtn = document.getElementById('start-btn');
+        const pauseBtn = document.getElementById('pause-btn');
+        const resumeBtn = document.getElementById('resume-btn');
+        startBtn.style.display = state === 'idle' ? 'inline-block' : 'none';
+        pauseBtn.style.display = state === 'measuring' ? 'inline-block' : 'none';
+        resumeBtn.style.display = state === 'paused' ? 'inline-block' : 'none';
+    }
+
     function startMeasure() {
         const targetIp = document.getElementById('target-ip').value.trim();
         if (!targetIp) {
@@ -143,6 +156,7 @@
 
             socket.on('disconnect', () => {
                 setStatus('未接続', 'status-disconnected');
+                setButtonState('idle');
             });
 
             socket.on('latency', (payload) => {
@@ -166,13 +180,30 @@
 
         socket.emit('start_measure', { target_ip: targetIp });
         setStatus('計測中...', 'status-measuring');
+        setButtonState('measuring');
+    }
+
+    function pauseMeasure() {
+        if (socket && socket.connected) {
+            socket.emit('pause_measure');
+            setStatus('一時停止中', 'status-paused');
+            setButtonState('paused');
+        }
+    }
+
+    function resumeMeasure() {
+        if (socket && socket.connected) {
+            socket.emit('resume_measure');
+            setStatus('計測中...', 'status-measuring');
+            setButtonState('measuring');
+        }
     }
 
     document.addEventListener('DOMContentLoaded', () => {
         setupChart();
-        document
-            .getElementById('start-btn')
-            .addEventListener('click', startMeasure);
+        document.getElementById('start-btn').addEventListener('click', startMeasure);
+        document.getElementById('pause-btn').addEventListener('click', pauseMeasure);
+        document.getElementById('resume-btn').addEventListener('click', resumeMeasure);
     });
 </script>
 {% endblock %}
