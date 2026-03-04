@@ -161,7 +161,7 @@ VTuberをはじめとしたデジタルIPの価値を、国内外へ拡張して
 
 
 
-## 全体構成
+## ■ 全体構成
 
 portfolio/  
 ├─ tool_program/  
